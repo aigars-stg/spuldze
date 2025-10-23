@@ -4,4 +4,5 @@
 /// for API communication and data management.
 library services;
 
+export 'cache_manager.dart';
 export 'elering_api_service.dart';
