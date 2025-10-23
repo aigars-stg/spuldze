@@ -11,13 +11,32 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+
+  # Core utilities
   intl: ^0.19.0
   cupertino_icons: ^1.0.6
+
+  # State management
+  provider: ^6.1.1
+
+  # Networking
+  http: ^1.2.0
+
+  # Local storage
+  shared_preferences: ^2.2.2
+
+  # Charts and visualization
+  fl_chart: ^0.66.0
+
+  # Widgets and notifications
+  home_widget: ^0.8.1
+  flutter_local_notifications: ^16.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -26,9 +45,19 @@ flutter:
   # Assets
   # assets:
   #   - images/
+  #   - assets/icons/
 
   # Fonts
   # fonts:
   #   - family: CustomFont
   #     fonts:
   #       - asset: fonts/CustomFont-Regular.ttf
+
+# Flutter Launcher Icons configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  # Uncomment and configure when you have the icon ready
+  # adaptive_icon_background: "#FFC107"
+  # adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
