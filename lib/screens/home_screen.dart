@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../widgets/widgets.dart';
 
 /// Home screen displaying electricity prices for today and tomorrow.
+///
+/// Supports two display modes:
+/// - Hourly view (default): Shows 24 hourly groups with averages
+/// - Detail view: Shows all 96 individual 15-minute interval prices
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,11 +23,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isInitialized = false;
+  bool _showDetailedView = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    // Load view preference
+    _loadViewPreference();
 
     // Load prices on startup
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -38,6 +48,28 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
+  /// Loads the saved view preference from SharedPreferences.
+  Future<void> _loadViewPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _showDetailedView = prefs.getBool('show_detailed_view') ?? false;
+    });
+  }
+
+  /// Saves the view preference to SharedPreferences.
+  Future<void> _saveViewPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('show_detailed_view', _showDetailedView);
+  }
+
+  /// Toggles between hourly and detailed view modes.
+  void _toggleViewMode() {
+    setState(() {
+      _showDetailedView = !_showDetailedView;
+    });
+    _saveViewPreference();
+  }
+
   Future<void> _handleRefresh() async {
     await context.read<PriceProvider>().refreshPrices();
   }
@@ -52,6 +84,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         title: Text(l10n.electricityPrices),
         elevation: 2,
         actions: [
+          // View toggle button
+          IconButton(
+            icon: Icon(
+              _showDetailedView ? Icons.view_agenda : Icons.view_comfy,
+            ),
+            onPressed: _toggleViewMode,
+            tooltip: _showDetailedView ? 'Hourly View' : 'Detailed View',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _handleRefresh,
@@ -127,6 +167,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               // Today tab
               _PriceTabView(
                 prices: provider.todayPrices,
+                hourlyGroups: provider.todayHourlyGroups,
+                showDetailedView: _showDetailedView,
                 isToday: true,
                 onRefresh: _handleRefresh,
               ),
@@ -134,6 +176,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               provider.hasTomorrowPrices
                   ? _PriceTabView(
                       prices: provider.tomorrowPrices!,
+                      hourlyGroups: provider.tomorrowHourlyGroups,
+                      showDetailedView: _showDetailedView,
                       isToday: false,
                       onRefresh: _handleRefresh,
                     )
@@ -155,21 +199,28 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 /// Tab view displaying price information for a day.
 class _PriceTabView extends StatelessWidget {
   final List<ElectricityPrice> prices;
+  final List<HourlyGroup> hourlyGroups;
+  final bool showDetailedView;
   final bool isToday;
   final VoidCallback onRefresh;
 
   const _PriceTabView({
     required this.prices,
+    required this.hourlyGroups,
+    required this.showDetailedView,
     required this.isToday,
     required this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.read<PriceProvider>();
+    final avgPrice = provider.getAveragePrice(prices);
+
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(bottom: 80),
         children: [
           // Current price (only for today)
           if (isToday) _CurrentPriceCard(prices: prices),
@@ -179,22 +230,92 @@ class _PriceTabView extends StatelessWidget {
           _StatisticsRow(prices: prices),
           const SizedBox(height: 24),
 
-          // Hourly prices header
-          Text(
-            'Hourly Prices',
-            style: Theme.of(context).textTheme.titleLarge,
+          // View mode indicator
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Text(
+                  showDetailedView
+                      ? '15-Minute Intervals (${prices.length})'
+                      : 'Hourly Groups (${hourlyGroups.length})',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const Spacer(),
+                Icon(
+                  showDetailedView ? Icons.access_time : Icons.calendar_view_day,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
-          // Hourly price list
-          _HourlyPriceList(prices: prices),
+          // Price list (hourly or detailed)
+          if (showDetailedView)
+            _buildDetailView(context, prices, avgPrice)
+          else
+            _buildHourlyView(context, hourlyGroups, avgPrice),
         ],
       ),
     );
   }
+
+  /// Builds the hourly view (24 cards).
+  Widget _buildHourlyView(
+    BuildContext context,
+    List<HourlyGroup> groups,
+    double avgPrice,
+  ) {
+    final now = DateTime.now();
+
+    return Column(
+      children: groups.map((group) {
+        final isCurrent = group.hour == now.hour && isToday;
+
+        return PriceCard(
+          mode: PriceCardMode.hourly,
+          hourlyGroup: group,
+          dailyAveragePrice: avgPrice,
+          isCurrent: isCurrent,
+          onTap: () {
+            // TODO: Show expansion with 4 x 15-min prices
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  /// Builds the detail view (96 cards).
+  Widget _buildDetailView(
+    BuildContext context,
+    List<ElectricityPrice> pricesList,
+    double avgPrice,
+  ) {
+    final now = DateTime.now();
+    final rounded15Min = (now.minute ~/ 15) * 15;
+
+    return Column(
+      children: pricesList.map((price) {
+        final isCurrent = isToday &&
+            price.timestamp.hour == now.hour &&
+            price.timestamp.minute == rounded15Min;
+
+        return PriceCard(
+          mode: PriceCardMode.detail,
+          price: price,
+          dailyAveragePrice: avgPrice,
+          isCurrent: isCurrent,
+        );
+      }).toList(),
+    );
+  }
 }
 
-/// Card displaying the current hour's price prominently.
+/// Card displaying the current 15-minute interval's price prominently.
 class _CurrentPriceCard extends StatelessWidget {
   final List<ElectricityPrice> prices;
 
@@ -212,6 +333,7 @@ class _CurrentPriceCard extends StatelessWidget {
 
     return Card(
       elevation: 4,
+      margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -246,9 +368,10 @@ class _CurrentPriceCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              DateFormat('HH:mm').format(currentPrice.timestamp),
-              style: theme.textTheme.bodyMedium?.copyWith(
+              currentPrice.timeDisplay, // Shows exact 15-min time: "07:15"
+              style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.5),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -271,44 +394,43 @@ class _StatisticsRow extends StatelessWidget {
     final maxPrice = provider.getMaxPrice(prices);
     final avgPrice = provider.getAveragePrice(prices);
 
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            label: 'Average',
-            value: (avgPrice / 1000).toStringAsFixed(4),
-            unit: '€/kWh',
-            icon: Icons.show_chart,
-            color: Colors.blue,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _StatCard(
+              label: 'Average',
+              value: (avgPrice / 1000).toStringAsFixed(4),
+              unit: '€/kWh',
+              icon: Icons.show_chart,
+              color: Colors.blue,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            label: 'Min',
-            value: minPrice?.formatPrice() ?? 'N/A',
-            unit: minPrice != null ? '€/kWh' : '',
-            subtitle: minPrice != null
-                ? DateFormat('HH:mm').format(minPrice.timestamp)
-                : null,
-            icon: Icons.arrow_downward,
-            color: Colors.green,
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StatCard(
+              label: 'Min',
+              value: minPrice?.formatPrice() ?? 'N/A',
+              unit: minPrice != null ? '€/kWh' : '',
+              subtitle: minPrice?.timeDisplay, // Exact time: "07:45"
+              icon: Icons.arrow_downward,
+              color: Colors.green,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            label: 'Max',
-            value: maxPrice?.formatPrice() ?? 'N/A',
-            unit: maxPrice != null ? '€/kWh' : '',
-            subtitle: maxPrice != null
-                ? DateFormat('HH:mm').format(maxPrice.timestamp)
-                : null,
-            icon: Icons.arrow_upward,
-            color: Colors.red,
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StatCard(
+              label: 'Max',
+              value: maxPrice?.formatPrice() ?? 'N/A',
+              unit: maxPrice != null ? '€/kWh' : '',
+              subtitle: maxPrice?.timeDisplay, // Exact time: "18:15"
+              icon: Icons.arrow_upward,
+              color: Colors.red,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -383,149 +505,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// List of hourly prices.
-class _HourlyPriceList extends StatelessWidget {
-  final List<ElectricityPrice> prices;
-
-  const _HourlyPriceList({required this.prices});
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.read<PriceProvider>();
-    final minPrice = provider.getMinPrice(prices);
-    final maxPrice = provider.getMaxPrice(prices);
-    final now = DateTime.now();
-
-    return Column(
-      children: prices.map((price) {
-        final isMin = price == minPrice;
-        final isMax = price == maxPrice;
-        final isCurrent = price.timestamp.hour == now.hour &&
-            price.timestamp.day == now.day;
-
-        return _HourlyPriceItem(
-          price: price,
-          isMin: isMin,
-          isMax: isMax,
-          isCurrent: isCurrent,
-        );
-      }).toList(),
-    );
-  }
-}
-
-/// Single hourly price item.
-class _HourlyPriceItem extends StatelessWidget {
-  final ElectricityPrice price;
-  final bool isMin;
-  final bool isMax;
-  final bool isCurrent;
-
-  const _HourlyPriceItem({
-    required this.price,
-    required this.isMin,
-    required this.isMax,
-    required this.isCurrent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final timeFormat = DateFormat('HH:mm');
-
-    Color? backgroundColor;
-    if (isCurrent) {
-      backgroundColor = theme.colorScheme.primaryContainer.withOpacity(0.3);
-    } else if (isMin) {
-      backgroundColor = Colors.green.withOpacity(0.1);
-    } else if (isMax) {
-      backgroundColor = Colors.red.withOpacity(0.1);
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
-        border: isCurrent
-            ? Border.all(
-                color: theme.colorScheme.primary,
-                width: 2,
-              )
-            : null,
-      ),
-      child: ListTile(
-        leading: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              timeFormat.format(price.timestamp),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            if (isCurrent)
-              Text(
-                'Now',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-          ],
-        ),
-        title: Row(
-          children: [
-            Text(
-              price.formatPrice(),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
-                color: isMin
-                    ? Colors.green
-                    : isMax
-                        ? Colors.red
-                        : null,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '€/kWh',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isMin)
-              const Chip(
-                label: Text('Cheapest'),
-                backgroundColor: Colors.green,
-                labelStyle: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 8),
-              ),
-            if (isMax)
-              const Chip(
-                label: Text('Highest'),
-                backgroundColor: Colors.red,
-                labelStyle: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 8),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// View shown when tomorrow's prices are not available yet.
 class _TomorrowNotAvailableView extends StatelessWidget {
   final VoidCallback onRefresh;
@@ -555,7 +534,7 @@ class _TomorrowNotAvailableView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Tomorrow\'s electricity prices are usually published around 2 PM. Pull down to refresh.',
+            'Tomorrow\'s electricity prices are usually published around 2 PM EET. Pull down to refresh.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurface.withOpacity(0.7),
             ),
