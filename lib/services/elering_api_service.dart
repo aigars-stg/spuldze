@@ -272,7 +272,38 @@ class EleringApiService {
       name: 'EleringApiService',
     );
 
+    // Validate 15-minute interval data
+    _validateResponse(prices);
+
     return prices;
+  }
+
+  /// Validates that the response contains 15-minute interval data.
+  ///
+  /// Logs warnings if data appears to be hourly instead of 15-minute intervals.
+  void _validateResponse(List<ElectricityPrice> prices) {
+    if (prices.length < 80) {
+      // Something wrong, less than a full day of 15-min data
+      developer.log(
+        'WARNING: Got ${prices.length} prices, expected ~96 for full day 15-min data',
+        name: 'EleringApiService',
+      );
+    }
+
+    // Verify we have :15, :30, :45 minutes represented
+    final minutes = prices.map((p) => p.timestamp.minute).toSet();
+    if (!minutes.contains(15) || !minutes.contains(30) || !minutes.contains(45)) {
+      developer.log(
+        'WARNING: Missing 15-minute interval precision in timestamps. '
+        'Found minutes: $minutes. This may be hourly data instead.',
+        name: 'EleringApiService',
+      );
+    } else {
+      developer.log(
+        'Verified 15-minute interval data (found :00, :15, :30, :45 intervals)',
+        name: 'EleringApiService',
+      );
+    }
   }
 
   /// Clears the cached data, forcing a fresh fetch on the next request.

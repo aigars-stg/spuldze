@@ -1,9 +1,10 @@
-/// Represents the electricity price for a specific hour.
+/// Represents the electricity price for a specific time interval.
 ///
 /// Contains the timestamp and price information from the Elering API.
+/// Supports both hourly and 15-minute interval data (00, 15, 30, 45 minutes).
 /// Prices are stored in EUR/MWh and can be converted to EUR/kWh for display.
 class ElectricityPrice implements Comparable<ElectricityPrice> {
-  /// The timestamp for this price point (hour start time)
+  /// The timestamp for this price point (exact time with 15-minute precision)
   final DateTime timestamp;
 
   /// The base electricity price in EUR/MWh (without VAT)
@@ -94,6 +95,26 @@ class ElectricityPrice implements Comparable<ElectricityPrice> {
   double getPriceInKWh({bool includeVAT = true}) {
     final priceValue = includeVAT ? priceWithVAT : price;
     return priceValue / 1000;
+  }
+
+  /// Returns the time in HH:mm format (e.g., "07:15", "14:45", "23:30").
+  ///
+  /// Useful for displaying exact 15-minute intervals in the UI.
+  /// Format preserves leading zeros for hours 00-09.
+  ///
+  /// Example:
+  /// ```dart
+  /// final price = ElectricityPrice(
+  ///   timestamp: DateTime(2025, 10, 23, 7, 15),
+  ///   price: 45.67,
+  ///   priceWithVAT: 55.27,
+  /// );
+  /// print(price.timeDisplay);  // "07:15"
+  /// ```
+  String get timeDisplay {
+    final hour = timestamp.hour.toString().padLeft(2, '0');
+    final minute = timestamp.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   /// Compares this price with another for sorting.

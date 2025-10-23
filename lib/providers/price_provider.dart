@@ -56,6 +56,38 @@ class PriceProvider extends ChangeNotifier {
   /// Whether tomorrow's prices are available
   bool get hasTomorrowPrices => _tomorrowPrices != null && _tomorrowPrices!.isNotEmpty;
 
+  /// Groups today's prices into hourly groups (24 groups of 4 x 15-min prices).
+  ///
+  /// Each [HourlyGroup] contains exactly 4 prices for that hour.
+  /// Returns empty list if today's prices are not available.
+  List<HourlyGroup> get todayHourlyGroups {
+    if (_todayPrices.isEmpty) return [];
+    return PriceDay(prices: _todayPrices).groupedByHour;
+  }
+
+  /// Groups tomorrow's prices into hourly groups (24 groups of 4 x 15-min prices).
+  ///
+  /// Each [HourlyGroup] contains exactly 4 prices for that hour.
+  /// Returns empty list if tomorrow's prices are not available.
+  List<HourlyGroup> get tomorrowHourlyGroups {
+    if (_tomorrowPrices == null || _tomorrowPrices!.isEmpty) return [];
+    return PriceDay(prices: _tomorrowPrices!).groupedByHour;
+  }
+
+  /// Gets the hourly group for the current hour from today's prices.
+  ///
+  /// Returns null if not available or if data is incomplete for this hour.
+  HourlyGroup? get currentHourlyGroup {
+    if (_todayPrices.isEmpty) return null;
+
+    final now = DateTime.now();
+    try {
+      return todayHourlyGroups.firstWhere((g) => g.hour == now.hour);
+    } catch (e) {
+      return null;
+    }
+  }
+
   /// Loads electricity prices using smart caching strategy.
   ///
   /// Strategy:
@@ -236,31 +268,28 @@ class PriceProvider extends ChangeNotifier {
     }
   }
 
-  /// Gets the current hour's electricity price.
+  /// Gets the current 15-minute interval electricity price.
   ///
-  /// Returns the price for the current hour from today's prices,
-  /// or null if not available.
+  /// Rounds current time to nearest 15-minute interval (00, 15, 30, 45)
+  /// and returns the matching price from today's prices.
+  /// Returns null if not available.
   ElectricityPrice? getCurrentPrice() {
     if (_todayPrices.isEmpty) return null;
 
     final now = DateTime.now();
-    final currentHour = DateTime(now.year, now.month, now.day, now.hour);
+    // Round to nearest 15-minute interval
+    final rounded15Min = (now.minute ~/ 15) * 15;
 
     try {
       return _todayPrices.firstWhere(
-        (price) {
-          final priceHour = DateTime(
-            price.timestamp.year,
-            price.timestamp.month,
-            price.timestamp.day,
-            price.timestamp.hour,
-          );
-          return priceHour == currentHour;
-        },
+        (price) =>
+            price.timestamp.hour == now.hour &&
+            price.timestamp.minute == rounded15Min &&
+            price.timestamp.day == now.day,
       );
     } catch (e) {
       developer.log(
-        'Current hour price not found',
+        'Current 15-minute interval price not found',
         name: 'PriceProvider',
       );
       return null;

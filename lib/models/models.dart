@@ -5,4 +5,5 @@
 library models;
 
 export 'electricity_price.dart';
+export 'hourly_group.dart';
 export 'price_day.dart';
