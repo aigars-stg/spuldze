@@ -1,0 +1,27 @@
+{
+  "@@locale": "en",
+  "appTitle": "Spuldze",
+  "@appTitle": {
+    "description": "The application title"
+  },
+  "electricityPrices": "Electricity Prices",
+  "@electricityPrices": {
+    "description": "Title for electricity prices section"
+  },
+  "currentPrice": "Current Price",
+  "@currentPrice": {
+    "description": "Label for current electricity price"
+  },
+  "pricePerKwh": "€/kWh",
+  "@pricePerKwh": {
+    "description": "Unit for price per kilowatt hour"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "Loading message"
+  },
+  "error": "Error",
+  "@error": {
+    "description": "Error message"
+  }
+}

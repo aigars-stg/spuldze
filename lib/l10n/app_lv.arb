@@ -1,0 +1,27 @@
+{
+  "@@locale": "lv",
+  "appTitle": "Spuldze",
+  "@appTitle": {
+    "description": "Aplikācijas nosaukums"
+  },
+  "electricityPrices": "Elektroenerģijas cenas",
+  "@electricityPrices": {
+    "description": "Elektroenerģijas cenu sadaļas nosaukums"
+  },
+  "currentPrice": "Pašreizējā cena",
+  "@currentPrice": {
+    "description": "Etiķete pašreizējai elektroenerģijas cenai"
+  },
+  "pricePerKwh": "€/kWh",
+  "@pricePerKwh": {
+    "description": "Vienība cenai par kilovatstundu"
+  },
+  "loading": "Ielādē...",
+  "@loading": {
+    "description": "Ielādes ziņojums"
+  },
+  "error": "Kļūda",
+  "@error": {
+    "description": "Kļūdas ziņojums"
+  }
+}
