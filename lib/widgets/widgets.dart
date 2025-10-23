@@ -4,3 +4,4 @@
 library widgets;
 
 export 'price_card.dart';
+export 'price_chart.dart';

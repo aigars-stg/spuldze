@@ -228,6 +228,15 @@ class _PriceTabView extends StatelessWidget {
 
           // Statistics cards
           _StatisticsRow(prices: prices),
+          const SizedBox(height: 16),
+
+          // Price chart with 96-point smooth line
+          PriceChart(
+            prices: prices,
+            showAverageLine: true,
+            showCurrentTimeMarker: isToday,
+            height: 250,
+          ),
           const SizedBox(height: 24),
 
           // View mode indicator
