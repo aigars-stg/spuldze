@@ -1,90 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(const SpuldzeApp());
+import 'providers/providers.dart';
+import 'screens/home_screen.dart';
+import 'services/services.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize services
+  final cacheManager = await CacheManager.getInstance();
+  final apiService = EleringApiService();
+
+  runApp(
+    SpuldzeApp(
+      cacheManager: cacheManager,
+      apiService: apiService,
+    ),
+  );
 }
 
 class SpuldzeApp extends StatelessWidget {
-  const SpuldzeApp({super.key});
+  final CacheManager cacheManager;
+  final EleringApiService apiService;
+
+  const SpuldzeApp({
+    super.key,
+    required this.cacheManager,
+    required this.apiService,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Spuldze',
-      debugShowCheckedModeBanner: false,
-
-      // Material 3 theme configuration
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.amber,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
+    return ChangeNotifierProvider(
+      create: (_) => PriceProvider(
+        apiService: apiService,
+        cacheManager: cacheManager,
       ),
+      child: MaterialApp(
+        title: 'Spuldze',
+        debugShowCheckedModeBanner: false,
 
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.amber,
-          brightness: Brightness.dark,
+        // Material 3 theme configuration
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.amber,
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
-      ),
 
-      themeMode: ThemeMode.system,
-
-      // Localization configuration
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-
-      supportedLocales: const [
-        Locale('en', ''), // English
-        Locale('lv', ''), // Latvian
-      ],
-
-      home: const HomePage(),
-    );
-  }
-}
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.appTitle),
-        elevation: 2,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.lightbulb_outline,
-              size: 120,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              l10n.electricityPrices,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Welcome to ${l10n.appTitle}!',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ],
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.amber,
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
         ),
+
+        themeMode: ThemeMode.system,
+
+        // Localization configuration
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+
+        supportedLocales: const [
+          Locale('en', ''), // English
+          Locale('lv', ''), // Latvian
+        ],
+
+        home: const HomeScreen(),
       ),
     );
   }
